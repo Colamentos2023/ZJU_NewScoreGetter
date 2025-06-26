@@ -24,7 +24,7 @@ pip install -r requirements.txt
 2.运行程序：
 
 ```bash
-python test.py
+python check_new_scores.py
 ```
 
 ## 注意事项
