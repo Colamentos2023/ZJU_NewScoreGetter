@@ -17,6 +17,7 @@ init()
 OUTPUT_DIR = "data"  # 输出目录
 MAX_RETRIES = 3  # 最大重试次数
 TIMEOUT = (5, 10)  # 连接和读取超时（秒）
+not_main_weight = 0.3  # 默认非主修权重
 
 # 绩点映射
 GRADE_TO_GPA = {
@@ -87,36 +88,45 @@ def convert_grade(score_text):
 
 # 计算均绩和均分
 def calculate_metrics(courses):
-    """计算均绩、主修均绩、百分制均分、主修百分制均分"""
-    total_weight = 0.0
-    total_gpa = 0.0
-    total_score = 0.0
-    major_weight = 0.0
-    major_gpa = 0.0
-    major_score = 0.0
+    """
+    计算四种指标：
+    1. 总均绩（所有课程按学分加权，不区分主修/非主修）
+    2. 总百分制均分（所有课程按学分加权，不区分主修/非主修）
+    3. 主修均绩（主修课按学分加权，非主修课按学分*not_main_weight加权）
+    4. 主修百分制均分（主修课按学分加权，非主修课按学分*not_main_weight加权）
+    """
+    total_credits = 0.0      # 总学分（用于总均绩/总均分）
+    total_gpa = 0.0          # 总绩点求和（学分*绩点）
+    total_score = 0.0        # 总分数求和（学分*分数）
+    
+    major_weight = 0.0       # 主修权重（主修学分+非主修学分*not_main_weight）
+    major_gpa = 0.0          # 主修绩点求和
+    major_score = 0.0        # 主修分数求和
 
     for course in courses:
         score, gpa = convert_grade(course['cj'] if 'cj' in course else course['score'])
         credits = float(course['xf'] if 'xf' in course else course['credits'])
-        weight = credits * (1.0 if course['is_major'] else 0.3)
-        total_weight += weight
-        total_gpa += gpa * weight
-        total_score += score * weight
-        if course['is_major']:
-            major_weight += credits
-            major_gpa += gpa * credits
-            major_score += score * credits
-
-    gpa = total_gpa / total_weight if total_weight > 0 else 0.0
-    avg_score = total_score / total_weight if total_weight > 0 else 0.0
-    major_gpa = major_gpa / major_weight if major_weight > 0 else 0.0
-    major_avg_score = major_score / major_weight if major_weight > 0 else 0.0
+        is_major = course['is_major']
+        
+        # 总均绩/总均分计算（始终用完整学分）
+        total_credits += credits
+        total_gpa += gpa * credits
+        total_score += score * credits
+        
+        # 主修均绩/主修均分计算
+        weight = credits * (1.0 if is_major else not_main_weight)
+        major_weight += weight
+        major_gpa += gpa * weight
+        major_score += score * weight
 
     return {
-        'gpa': round(gpa, 4),
-        'avg_score': round(avg_score, 4),
-        'major_gpa': round(major_gpa, 4),
-        'major_avg_score': round(major_avg_score, 4)
+        # 总指标（直接按学分加权）
+        'gpa': round(total_gpa / total_credits, 4) if total_credits > 0 else 0.0,
+        'avg_score': round(total_score / total_credits, 4) if total_credits > 0 else 0.0,
+        
+        # 主修指标（非主修课权重降低）
+        'major_gpa': round(major_gpa / major_weight, 4) if major_weight > 0 else 0.0,
+        'major_avg_score': round(major_score / major_weight, 4) if major_weight > 0 else 0.0
     }
 
 # 爬取成绩单和专业课程统计数据
@@ -289,6 +299,13 @@ def main():
             print("间隔必须在10到3600秒之间，请重新输入")
         except ValueError:
             print("请输入有效的整数")
+    while True:      
+        try:
+            not_main_weight = float(input("非主修课程权重（0-1）："))
+            if 0 <= not_main_weight <= 1:
+                break
+        except ValueError:
+            print("请输入0-1之间的数字")
     
     # 存储上一次的课程列表
     previous_courses = []
