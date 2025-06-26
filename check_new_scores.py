@@ -293,10 +293,10 @@ def main():
     # 获取检测间隔
     while True:
         try:
-            interval = int(input("请输入检测间隔（秒，10-3600）："))
-            if 10 <= interval <= 3600:
+            interval = int(input("请输入检测间隔（秒，30-3600）："))
+            if 30 <= interval <= 3600:
                 break
-            print("间隔必须在10到3600秒之间，请重新输入")
+            print("间隔必须在30到3600秒之间，请重新输入")
         except ValueError:
             print("请输入有效的整数")
     while True:      
